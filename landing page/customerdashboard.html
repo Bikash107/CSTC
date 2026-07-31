@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSTC — My Tickets</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <div class="dash-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="dash-sidebar">
+      <div class="dash-logo">CSTC</div>
+
+      <nav class="dash-nav">
+        <a href="#" class="dash-nav-link active">My Tickets</a>
+        <a href="createTicket.html" class="dash-nav-link">New Ticket</a>
+        <a href="#" class="dash-nav-link">Profile</a>
+      </nav>
+
+      <a href="login.html" class="dash-logout">Log out</a>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="dash-main">
+
+      <div class="dash-topbar">
+        <div>
+          <h1>My Tickets</h1>
+          <p>Track and manage your support requests</p>
+        </div>
+        <a href="createTicket.html" class="btn btn-primary">+ New Ticket</a>
+      </div>
+
+      <div class="filter-tabs">
+        <button class="filter-btn active">All</button>
+        <button class="filter-btn">Open</button>
+        <button class="filter-btn">In Progress</button>
+        <button class="filter-btn">Resolved</button>
+        <button class="filter-btn">Closed</button>
+      </div>
+
+      <div class="ticket-list">
+
+        <a href="ticketdetail.html" class="ticket-row">
+          <div class="ticket-row-main">
+            <span class="ticket-row-id">TCK-2417</span>
+            <h4>Unable to export invoice as PDF</h4>
+            <p>Billing • Created 2 days ago</p>
+          </div>
+          <span class="status-pill status-progress">In Progress</span>
+        </a>
+
+        <a href="ticketdetail.html" class="ticket-row">
+          <div class="ticket-row-main">
+            <span class="ticket-row-id">TCK-2401</span>
+            <h4>Login page shows blank screen on mobile</h4>
+            <p>Technical • Created 5 days ago</p>
+          </div>
+          <span class="status-pill status-open">Open</span>
+        </a>
+
+        <a href="ticketdetail.html" class="ticket-row">
+          <div class="ticket-row-main">
+            <span class="ticket-row-id">TCK-2388</span>
+            <h4>Refund not reflected in account</h4>
+            <p>Billing • Created 1 week ago</p>
+          </div>
+          <span class="status-pill status-resolved">Resolved</span>
+        </a>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <script src="script.js"></script>
+</body>
+
+</html>

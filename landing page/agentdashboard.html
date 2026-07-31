@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSTC — Agent Queue</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="dash-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="dash-sidebar">
+      <div class="dash-logo">CSTC</div>
+
+      <nav class="dash-nav">
+        <a href="agentdashboard.html" class="dash-nav-link active">My Queue</a>
+        <a href="#" class="dash-nav-link">Unassigned</a>
+        <a href="#" class="dash-nav-link">Profile</a>
+      </nav>
+
+      <a href="login.html" class="dash-logout">Log out</a>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="dash-main">
+
+      <div class="dash-topbar">
+        <div>
+          <h1>My Queue</h1>
+          <p>Tickets assigned to you, sorted by priority</p>
+        </div>
+        <span class="agent-badge">RS</span>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <span class="stat-num">7</span>
+          <span class="stat-label">Assigned to me</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num">2</span>
+          <span class="stat-label">SLA breach risk</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num">14</span>
+          <span class="stat-label">Resolved this week</span>
+        </div>
+      </div>
+
+      <div class="filter-tabs">
+        <button class="filter-btn active">All</button>
+        <button class="filter-btn">Urgent</button>
+        <button class="filter-btn">High</button>
+        <button class="filter-btn">Medium</button>
+        <button class="filter-btn">Low</button>
+      </div>
+
+      <div class="ticket-list">
+
+        <a href="ticket-detail.html" class="ticket-row">
+          <div class="ticket-row-main">
+            <span class="ticket-row-id">TCK-2417</span>
+            <h4>Unable to export invoice as PDF</h4>
+            <p>Billing • Customer: Amit Sharma • SLA in 1h 47m</p>
+          </div>
+          <div class="ticket-row-actions">
+            <span class="priority-pill priority-high">High</span>
+            <span class="status-pill status-progress">In Progress</span>
+          </div>
+        </a>
+
+        <a href="ticket-detail.html" class="ticket-row">
+          <div class="ticket-row-main">
+            <span class="ticket-row-id">TCK-2422</span>
+            <h4>Payment failed but amount deducted</h4>
+            <p>Billing • Customer: Priya Nair • SLA in 34m</p>
+          </div>
+          <div class="ticket-row-actions">
+            <span class="priority-pill priority-urgent">Urgent</span>
+            <span class="status-pill status-open">Open</span>
+          </div>
+        </a>
+
+        <a href="ticket-detail.html" class="ticket-row">
+          <div class="ticket-row-main">
+            <span class="ticket-row-id">TCK-2405</span>
+            <h4>Feature request: dark mode</h4>
+            <p>General • Customer: Rohit Das • SLA in 2d</p>
+          </div>
+          <div class="ticket-row-actions">
+            <span class="priority-pill priority-low">Low</span>
+            <span class="status-pill status-open">Open</span>
+          </div>
+        </a>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

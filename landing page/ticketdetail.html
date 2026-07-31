@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSTC — TCK-2417</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="dash-layout">
+
+    <aside class="dash-sidebar">
+      <div class="dash-logo">CSTC</div>
+      <nav class="dash-nav">
+        <a href="customerdashboard.html" class="dash-nav-link active">My Tickets</a>
+        <a href="createTicket.html" class="dash-nav-link">New Ticket</a>
+        <a href="#" class="dash-nav-link">Profile</a>
+      </nav>
+      <a href="login.html" class="dash-logout">Log out</a>
+    </aside>
+
+    <main class="dash-main">
+
+      <a href="customerdashboard.html" class="back-link">← Back to My Tickets</a>
+
+      <div class="detail-header">
+        <div>
+          <span class="ticket-row-id">TCK-2417</span>
+          <h1>Unable to export invoice as PDF</h1>
+        </div>
+        <div class="detail-pills">
+          <span class="priority-pill priority-high">High</span>
+          <span class="status-pill status-progress">In Progress</span>
+        </div>
+      </div>
+
+      <div class="detail-grid">
+
+        <div class="detail-main">
+
+          <div class="detail-card">
+            <p class="ticket-desc">Customer reports the export button spins indefinitely on the billing page. Occurs on Chrome and Safari, not reproducible on Firefox.</p>
+          </div>
+
+          <div class="thread">
+
+            <div class="thread-item">
+              <div class="thread-head">
+                <span class="thread-author">Amit Sharma (Customer)</span>
+                <span class="thread-time">2 days ago</span>
+              </div>
+              <p>Still happening even after clearing my browser cache. Please help urgently.</p>
+            </div>
+
+            <div class="thread-item thread-internal">
+              <div class="thread-head">
+                <span class="thread-author">Riya S. (Internal note)</span>
+                <span class="thread-time">1 day ago</span>
+              </div>
+              <p>Checked backend logs — export API is timing out for invoices over 50 line items. Escalating to dev team.</p>
+            </div>
+
+            <div class="thread-item">
+              <div class="thread-head">
+                <span class="thread-author">Riya S. (Agent)</span>
+                <span class="thread-time">1 day ago</span>
+              </div>
+              <p>Thanks for your patience — we've identified the issue and are working on a fix.</p>
+            </div>
+
+          </div>
+
+          <form class="reply-box">
+            <textarea rows="4" placeholder="Type your reply..."></textarea>
+            <div class="reply-actions">
+              <label class="checkbox-label">
+                <input type="checkbox"> Internal note only
+              </label>
+              <button type="submit" class="btn btn-primary">Send Reply</button>
+            </div>
+          </form>
+
+        </div>
+
+        <div class="detail-sidebar">
+          <div class="detail-card">
+            <h4>Ticket Info</h4>
+            <div class="info-row"><span>Category</span><span>Billing</span></div>
+            <div class="info-row"><span>Customer</span><span>Amit Sharma</span></div>
+            <div class="info-row"><span>Assigned to</span><span>Riya Sharma</span></div>
+            <div class="info-row"><span>Created</span><span>2 days ago</span></div>
+            <div class="info-row"><span>SLA</span><span class="sla-timer">01:47:12</span></div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
