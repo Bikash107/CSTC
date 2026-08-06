@@ -189,7 +189,7 @@ export default function TicketDetail() {
                   {attachments.map((a) => (
                     <a
                       key={a._id}
-                      href={`http://localhost:3000${a.file_url}`}
+                      href={a.file_url}
                       target="_blank"
                       rel="noreferrer"
                       className="attachment-link"

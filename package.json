@@ -1,0 +1,10 @@
+{
+  "name": "cstc",
+  "version": "1.0.0",
+  "description": "Customer Support Ticket System",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "install-backend": "cd backend && npm install",
+    "start": "cd backend && npm start"
+  }
+}

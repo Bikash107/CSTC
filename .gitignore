@@ -1,3 +1,12 @@
+# Dependencies
 backend/node_modules/
-   backend/.env
-   backend/uploads/
+frontend/node_modules/
+
+# Environment secrets — never commit these
+backend/.env
+
+# Uploaded files (too large for git)
+backend/uploads/
+
+# Frontend build output — Render builds this itself
+frontend/dist/

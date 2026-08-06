@@ -1,4 +1,8 @@
 require("dotenv").config();
+const dns = require("dns");
+// Force Node to resolve DNS using IPv4 first to prevent querySrv ECONNREFUSED on Windows
+dns.setDefaultResultOrder("ipv4first");
+
 const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
@@ -15,7 +19,14 @@ const JWT_SECRET = process.env.JWT_SECRET;
 // Connect to MongoDB
 connectDB();
 
-app.use(cors());
+// In production (Render), backend serves the frontend — so CORS is same-origin.
+// In development, allow the Vite dev server.
+app.use(cors({
+  origin: process.env.NODE_ENV === "production"
+    ? true  // same-origin, allow all
+    : ["http://localhost:5173"],
+  credentials: true,
+}));
 app.use(express.json());
 
 // ─── File Upload ─────────────────────────────────────────────────────────────
@@ -337,6 +348,15 @@ app.get("/api/tickets/:id/attachments", verifyToken, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }
+});
+
+// ─── Serve React Frontend (Production) ───────────────────────────────────────
+const frontendDist = path.join(__dirname, "../frontend/dist");
+app.use(express.static(frontendDist));
+
+// Catch-all: send React's index.html for any non-API route (client-side routing)
+app.get("*", (req, res) => {
+  res.sendFile(path.join(frontendDist, "index.html"));
 });
 
 // ─── Start Server ─────────────────────────────────────────────────────────────
