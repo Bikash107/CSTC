@@ -1,17 +1,24 @@
 require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 const multer = require("multer");
 const path = require("path");
-const cors = require("cors");
-const express = require("express");
-const bcrypt = require("bcrypt");
-const db = require("./db");
+const mongoose = require("mongoose");
+const connectDB = require("./db");
 
 const app = express();
-app.use(cors());
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET;
 
+// Connect to MongoDB
+connectDB();
+
+app.use(cors());
 app.use(express.json());
 
+// ─── File Upload ─────────────────────────────────────────────────────────────
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, "uploads/");
@@ -19,256 +26,320 @@ const storage = multer.diskStorage({
   filename: function (req, file, cb) {
     const uniqueName = Date.now() + "-" + file.originalname;
     cb(null, uniqueName);
-  }
+  },
 });
-
-const upload = multer({ storage: storage });
-
+const upload = multer({ storage });
 app.use("/uploads", express.static("uploads"));
 
+// ─── Mongoose Models ──────────────────────────────────────────────────────────
+
+const userSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password_hash: { type: String, required: true },
+    role: { type: String, enum: ["customer", "agent", "admin"], default: "customer" },
+  },
+  { timestamps: true }
+);
+
+const ticketSchema = new mongoose.Schema(
+  {
+    customer_id: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    assigned_agent_id: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    category: { type: String, default: "General" },
+    subject: { type: String, required: true },
+    description: { type: String, required: true },
+    priority: { type: String, enum: ["low", "medium", "high", "urgent"], default: "medium" },
+    status: {
+      type: String,
+      enum: ["open", "in_progress", "resolved", "closed", "reopened"],
+      default: "open",
+    },
+  },
+  { timestamps: true }
+);
+
+const commentSchema = new mongoose.Schema(
+  {
+    ticket_id: { type: mongoose.Schema.Types.ObjectId, ref: "Ticket", required: true },
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    message: { type: String, required: true },
+    is_internal: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+);
+
+const attachmentSchema = new mongoose.Schema(
+  {
+    ticket_id: { type: mongoose.Schema.Types.ObjectId, ref: "Ticket", required: true },
+    file_url: { type: String, required: true },
+    file_name: { type: String, required: true },
+    uploaded_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  },
+  { timestamps: true }
+);
+
+const User = mongoose.model("User", userSchema);
+const Ticket = mongoose.model("Ticket", ticketSchema);
+const Comment = mongoose.model("Comment", commentSchema);
+const Attachment = mongoose.model("Attachment", attachmentSchema);
+
+// ─── JWT Middleware ───────────────────────────────────────────────────────────
+const verifyToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized: no token" });
+  }
+  const token = authHeader.split(" ")[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: "Unauthorized: invalid token" });
+  }
+};
+
+// ─── Auth Routes ──────────────────────────────────────────────────────────────
 app.get("/", (req, res) => {
-  res.send("CSTC backend is running");
+  res.send("CSTC backend is running (MongoDB)");
 });
 
 app.post("/api/register", async (req, res) => {
   const { name, email, password } = req.body;
-
-  if (!name || !email || !password) {
+  if (!name || !email || !password)
     return res.status(400).json({ error: "All fields are required" });
-  }
 
   try {
-    const passwordHash = await bcrypt.hash(password, 10);
+    const existing = await User.findOne({ email });
+    if (existing) return res.status(409).json({ error: "Email already in use" });
 
-    const sql = "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)";
-    db.query(sql, [name, email, passwordHash], (err, result) => {
-      if (err) {
-        console.error(err);
-        return res.status(500).json({ error: "Something went wrong" });
-      }
-      res.status(201).json({ message: "User registered successfully", userId: result.insertId });
+    const password_hash = await bcrypt.hash(password, 10);
+    const user = await User.create({ name, email, password_hash });
+    res.status(201).json({ message: "User registered successfully", userId: user._id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.post("/api/login", async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password)
+    return res.status(400).json({ error: "Email and password are required" });
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(401).json({ error: "Invalid email or password" });
+
+    const match = await bcrypt.compare(password, user.password_hash);
+    if (!match) return res.status(401).json({ error: "Invalid email or password" });
+
+    const token = jwt.sign(
+      { id: user._id, name: user.name, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.status(200).json({
+      message: "Login successful",
+      token,
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
+// ─── Stats (Admin) ────────────────────────────────────────────────────────────
+app.get("/api/stats", verifyToken, async (req, res) => {
+  try {
+    const totalTickets = await Ticket.countDocuments();
+    const openTickets = await Ticket.countDocuments({ status: "open" });
+    const inProgressTickets = await Ticket.countDocuments({ status: "in_progress" });
+    const resolvedTickets = await Ticket.countDocuments({ status: "resolved" });
+    const closedTickets = await Ticket.countDocuments({ status: "closed" });
+    const urgentTickets = await Ticket.countDocuments({ priority: "urgent" });
+    const totalUsers = await User.countDocuments({ role: "customer" });
+    const totalAgents = await User.countDocuments({ role: "agent" });
+
+    res.json({
+      totalTickets,
+      openTickets,
+      inProgressTickets,
+      resolvedTickets,
+      closedTickets,
+      urgentTickets,
+      totalUsers,
+      totalAgents,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ─── Users (Admin) ────────────────────────────────────────────────────────────
+app.get("/api/users", verifyToken, async (req, res) => {
+  try {
+    const users = await User.find({}, "-password_hash").sort({ createdAt: -1 });
+    res.json(users);
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }
 });
 
-app.post("/api/login", (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ error: "Email and password are required" });
+app.patch("/api/users/:id/role", verifyToken, async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!["customer", "agent", "admin"].includes(role))
+      return res.status(400).json({ error: "Invalid role" });
+    const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true, select: "-password_hash" });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json({ message: "Role updated", user });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
   }
+});
 
-  const sql = "SELECT * FROM users WHERE email = ?";
-  db.query(sql, [email], async (err, results) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: "Something went wrong" });
-    }
+// ─── Tickets ──────────────────────────────────────────────────────────────────
+app.post("/api/tickets", verifyToken, async (req, res) => {
+  const { category, subject, description, priority } = req.body;
+  if (!subject || !description)
+    return res.status(400).json({ error: "subject and description are required" });
 
-    if (results.length === 0) {
-      return res.status(401).json({ error: "Invalid email or password" });
-    }
-
-    const user = results[0];
-    const passwordMatch = await bcrypt.compare(password, user.password_hash);
-
-    if (!passwordMatch) {
-      return res.status(401).json({ error: "Invalid email or password" });
-    }
-
-    res.status(200).json({
-      message: "Login successful",
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
+  try {
+    const ticket = await Ticket.create({
+      customer_id: req.user.id,
+      category: category || "General",
+      subject,
+      description,
+      priority: priority || "medium",
     });
-  });
-});
-
-app.post("/api/tickets", (req, res) => {
-  const { customer_id, category_id, subject, description, priority } = req.body;
-
-  if (!customer_id || !subject || !description) {
-    return res.status(400).json({ error: "customer_id, subject, and description are required" });
+    res.status(201).json({ message: "Ticket created successfully", ticketId: ticket._id, ticket });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
-
-  const sql = `
-    INSERT INTO tickets (customer_id, category_id, subject, description, priority)
-    VALUES (?, ?, ?, ?, ?)
-  `;
-
-  const values = [
-    customer_id,
-    category_id || null,
-    subject,
-    description,
-    priority || "medium"
-  ];
-
-  db.query(sql, values, (err, result) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: "Something went wrong" });
-    }
-    res.status(201).json({ message: "Ticket created successfully", ticketId: result.insertId });
-  });
 });
 
-app.get("/api/tickets", (req, res) => {
-  const sql = "SELECT * FROM tickets ORDER BY created_at DESC";
-
-  db.query(sql, (err, results) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: "Something went wrong" });
+app.get("/api/tickets", verifyToken, async (req, res) => {
+  try {
+    let query = {};
+    // Customers only see their own tickets
+    if (req.user.role === "customer") {
+      query.customer_id = req.user.id;
     }
-    res.status(200).json(results);
-  });
+    const tickets = await Ticket.find(query)
+      .populate("customer_id", "name email")
+      .populate("assigned_agent_id", "name email")
+      .sort({ createdAt: -1 });
+    res.json(tickets);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
-app.get("/api/tickets/:id", (req, res) => {
-  const ticketId = req.params.id;
-
-  const sql = "SELECT * FROM tickets WHERE id = ?";
-
-  db.query(sql, [ticketId], (err, results) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: "Something went wrong" });
-    }
-
-    if (results.length === 0) {
-      return res.status(404).json({ error: "Ticket not found" });
-    }
-
-    res.status(200).json(results[0]);
-  });
+app.get("/api/tickets/:id", verifyToken, async (req, res) => {
+  try {
+    const ticket = await Ticket.findById(req.params.id)
+      .populate("customer_id", "name email")
+      .populate("assigned_agent_id", "name email");
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    res.json(ticket);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
-app.patch("/api/tickets/:id", (req, res) => {
-  const ticketId = req.params.id;
+app.patch("/api/tickets/:id", verifyToken, async (req, res) => {
   const { status, priority, assigned_agent_id } = req.body;
+  const updates = {};
+  if (status) updates.status = status;
+  if (priority) updates.priority = priority;
+  if (assigned_agent_id) updates.assigned_agent_id = assigned_agent_id;
 
-  const updates = [];
-  const values = [];
-
-  if (status) {
-    updates.push("status = ?");
-    values.push(status);
-  }
-  if (priority) {
-    updates.push("priority = ?");
-    values.push(priority);
-  }
-  if (assigned_agent_id) {
-    updates.push("assigned_agent_id = ?");
-    values.push(assigned_agent_id);
-  }
-
-  if (updates.length === 0) {
+  if (Object.keys(updates).length === 0)
     return res.status(400).json({ error: "No fields to update" });
+
+  try {
+    const ticket = await Ticket.findByIdAndUpdate(req.params.id, updates, { new: true });
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    res.json({ message: "Ticket updated successfully", ticket });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
   }
-
-  values.push(ticketId);
-
-  const sql = `UPDATE tickets SET ${updates.join(", ")} WHERE id = ?`;
-
-  db.query(sql, values, (err, result) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: "Something went wrong" });
-    }
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Ticket not found" });
-    }
-
-    res.status(200).json({ message: "Ticket updated successfully" });
-  });
 });
 
-app.post("/api/tickets/:id/comments", (req, res) => {
-  const ticketId = req.params.id;
-  const { user_id, message, is_internal } = req.body;
+// ─── Comments ─────────────────────────────────────────────────────────────────
+app.post("/api/tickets/:id/comments", verifyToken, async (req, res) => {
+  const { message, is_internal } = req.body;
+  if (!message) return res.status(400).json({ error: "message is required" });
 
-  if (!user_id || !message) {
-    return res.status(400).json({ error: "user_id and message are required" });
+  try {
+    const comment = await Comment.create({
+      ticket_id: req.params.id,
+      user_id: req.user.id,
+      message,
+      is_internal: is_internal || false,
+    });
+    res.status(201).json({ message: "Comment added", commentId: comment._id });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
   }
-
-  const sql = "INSERT INTO comments (ticket_id, user_id, message, is_internal) VALUES (?, ?, ?, ?)";
-  const values = [ticketId, user_id, message, is_internal ? 1 : 0];
-
-  db.query(sql, values, (err, result) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: "Something went wrong" });
-    }
-    res.status(201).json({ message: "Comment added successfully", commentId: result.insertId });
-  });
 });
 
-app.get("/api/tickets/:id/comments", (req, res) => {
-  const ticketId = req.params.id;
+app.get("/api/tickets/:id/comments", verifyToken, async (req, res) => {
+  try {
+    const comments = await Comment.find({ ticket_id: req.params.id })
+      .populate("user_id", "name role")
+      .sort({ createdAt: 1 });
 
-  const sql = `
-    SELECT comments.*, users.name AS author_name, users.role AS author_role
-    FROM comments
-    JOIN users ON comments.user_id = users.id
-    WHERE comments.ticket_id = ?
-    ORDER BY comments.created_at ASC
-  `;
+    const formatted = comments.map((c) => ({
+      _id: c._id,
+      message: c.message,
+      is_internal: c.is_internal,
+      createdAt: c.createdAt,
+      author_name: c.user_id?.name,
+      author_role: c.user_id?.role,
+    }));
 
-  db.query(sql, [ticketId], (err, results) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: "Something went wrong" });
-    }
-    res.status(200).json(results);
-  });
-});
-
-app.post("/api/tickets/:id/attachments", upload.single("file"), (req, res) => {
-  const ticketId = req.params.id;
-  const uploadedBy = req.body.uploaded_by;
-
-  if (!req.file) {
-    return res.status(400).json({ error: "No file uploaded" });
+    res.json(formatted);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
   }
-
-  const fileUrl = "/uploads/" + req.file.filename;
-  const fileName = req.file.originalname;
-
-  const sql = "INSERT INTO attachments (ticket_id, file_url, file_name, uploaded_by) VALUES (?, ?, ?, ?)";
-  const values = [ticketId, fileUrl, fileName, uploadedBy];
-
-  db.query(sql, values, (err, result) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: "Something went wrong" });
-    }
-    res.status(201).json({ message: "File uploaded successfully", fileUrl: fileUrl });
-  });
 });
 
-app.get("/api/tickets/:id/attachments", (req, res) => {
-  const ticketId = req.params.id;
+// ─── Attachments ──────────────────────────────────────────────────────────────
+app.post("/api/tickets/:id/attachments", verifyToken, upload.single("file"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-  const sql = "SELECT * FROM attachments WHERE ticket_id = ?";
-  db.query(sql, [ticketId], (err, results) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: "Something went wrong" });
-    }
-    res.status(200).json(results);
-  });
+  try {
+    const fileUrl = "/uploads/" + req.file.filename;
+    const attachment = await Attachment.create({
+      ticket_id: req.params.id,
+      file_url: fileUrl,
+      file_name: req.file.originalname,
+      uploaded_by: req.user.id,
+    });
+    res.status(201).json({ message: "File uploaded successfully", fileUrl, attachment });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
+app.get("/api/tickets/:id/attachments", verifyToken, async (req, res) => {
+  try {
+    const attachments = await Attachment.find({ ticket_id: req.params.id });
+    res.json(attachments);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ─── Start Server ─────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
