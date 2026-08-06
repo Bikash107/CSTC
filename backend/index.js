@@ -361,7 +361,8 @@ const frontendDist = path.join(__dirname, "../frontend/dist");
 app.use(express.static(frontendDist));
 
 // Catch-all: send React's index.html for any non-API route (client-side routing)
-app.get("*", (req, res) => {
+// Note: Express 5 requires {*path} instead of * for wildcards
+app.get(/^(?!\/api|\/uploads).*$/, (req, res) => {
   res.sendFile(path.join(frontendDist, "index.html"));
 });
 
