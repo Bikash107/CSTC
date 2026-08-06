@@ -33,23 +33,23 @@
 
         <div class="form-group">
           <label>Subject</label>
-          <input type="text" placeholder="Brief summary of the issue" required>
+          <input type="text" id="ticketSubject" placeholder="Brief summary of the issue" required>
         </div>
 
         <div class="form-row-2col">
           <div class="form-group">
             <label>Category</label>
-            <select required>
+            <select id="ticketCategory" required>
               <option value="">Select category</option>
-              <option value="billing">Billing</option>
-              <option value="technical">Technical</option>
-              <option value="general">General</option>
+              <option value="1">Billing</option>
+              <option value="2">Technical</option>
+              <option value="3">General</option>
             </select>
           </div>
 
           <div class="form-group">
             <label>Priority</label>
-            <select required>
+            <select id="ticketPriority" required>
               <option value="">Select priority</option>
               <option value="low">Low</option>
               <option value="medium">Medium</option>
@@ -61,12 +61,12 @@
 
         <div class="form-group">
           <label>Description</label>
-          <textarea rows="6" placeholder="Describe the issue in detail..." required></textarea>
+          <textarea id="ticketDescription" rows="6" placeholder="Describe the issue in detail..." required></textarea>
         </div>
 
         <div class="form-group">
           <label>Attachment (optional)</label>
-          <input type="file">
+          <input type="file" id="ticketAttachment">
         </div>
 
         <button type="submit" class="btn btn-primary">Submit Ticket</button>
@@ -74,6 +74,8 @@
 
     </main>
   </div>
+
+  <div class="toast" id="toast"></div>
 
   <script src="script.js"></script>
 </body>
