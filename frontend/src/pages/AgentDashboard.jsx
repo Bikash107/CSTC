@@ -47,7 +47,8 @@ export default function AgentDashboard() {
 
   const stats = {
     total: tickets.length,
-    mine: tickets.filter((t) => t.assigned_agent_id?._id === user?.id || t.assigned_agent_id === user?.id).length,
+    // BUG-3 fix: normalize ObjectId to string for reliable comparison
+    mine: tickets.filter((t) => String(t.assigned_agent_id?._id) === String(user?.id)).length,
     open: tickets.filter((t) => t.status === 'open').length,
     urgent: tickets.filter((t) => t.priority === 'urgent').length,
   };

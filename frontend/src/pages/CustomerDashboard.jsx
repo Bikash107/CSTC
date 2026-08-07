@@ -107,7 +107,12 @@ export default function CustomerDashboard() {
                 <span className="ticket-id">{shortId(t._id)}</span>
                 <div>
                   <div className="ticket-subject">{t.subject}</div>
-                  <div className="ticket-meta">{t.description?.slice(0, 60)}...</div>
+                  <div className="ticket-meta">
+                    {/* BUG-8 fix: only show ellipsis when text is actually truncated */}
+                    {t.description && t.description.length > 60
+                      ? t.description.slice(0, 60) + '...'
+                      : t.description}
+                  </div>
                 </div>
                 <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t.category}</span>
                 <PriorityBadge priority={t.priority} />

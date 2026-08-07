@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
 const ToastContext = createContext(null);
 
@@ -13,11 +13,12 @@ export function ToastProvider({ children }) {
     }, 3000);
   }, []);
 
-  const toast = {
+  // Memoized so consumers don't re-render when ToastProvider re-renders (BUG-10)
+  const toast = useMemo(() => ({
     success: (msg) => addToast(msg, 'success'),
     error: (msg) => addToast(msg, 'error'),
     info: (msg) => addToast(msg, 'info'),
-  };
+  }), [addToast]);
 
   return (
     <ToastContext.Provider value={toast}>

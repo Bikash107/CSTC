@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { StatusBadge, PriorityBadge } from '../components/Badges';
@@ -52,7 +52,8 @@ export default function TicketDetail() {
 
   const isStaff = user?.role === 'agent' || user?.role === 'admin';
 
-  const fetchAll = async () => {
+  // BUG-2 fix: wrap fetchAll in useCallback so the useEffect dep array is stable
+  const fetchAll = useCallback(async () => {
     try {
       const [tRes, cRes, aRes] = await Promise.all([
         getTicket(id),
@@ -70,9 +71,9 @@ export default function TicketDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, toast, navigate]);
 
-  useEffect(() => { fetchAll(); }, [id]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const handleReply = async (e) => {
     e.preventDefault();
@@ -186,17 +187,27 @@ export default function TicketDetail() {
               {/* Attachments */}
               {attachments.length > 0 && (
                 <div className="attachment-list" style={{ marginTop: 16 }}>
-                  {attachments.map((a) => (
-                    <a
-                      key={a._id}
-                      href={a.file_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="attachment-link"
-                    >
-                      📎 {a.file_name}
-                    </a>
-                  ))}
+                  {attachments.map((a) => {
+                    // BUG-9 fix: in dev, /uploads/* resolves to Vite port (5173),
+                    // not the backend (3000). Prepend the API base URL if set.
+                    const apiBase = import.meta.env.VITE_API_URL
+                      ? import.meta.env.VITE_API_URL.replace('/api', '')
+                      : '';
+                    const fileHref = a.file_url.startsWith('http')
+                      ? a.file_url
+                      : apiBase + a.file_url;
+                    return (
+                      <a
+                        key={a._id}
+                        href={fileHref}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="attachment-link"
+                      >
+                        📎 {a.file_name}
+                      </a>
+                    );
+                  })}
                 </div>
               )}
             </div>

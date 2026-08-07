@@ -16,6 +16,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 
+// ─── Startup Guard ────────────────────────────────────────────────────────────
+if (!JWT_SECRET) {
+  console.error("❌ FATAL: JWT_SECRET is not set in environment variables.");
+  console.error("   Copy backend/.env.example to backend/.env and fill in JWT_SECRET.");
+  process.exit(1);
+}
+
 // Connect to MongoDB
 connectDB();
 
@@ -36,6 +43,15 @@ if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
+const ALLOWED_MIME_TYPES = [
+  "image/jpeg", "image/png", "image/gif", "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
+  "application/zip",
+];
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, UPLOADS_DIR);
@@ -45,7 +61,18 @@ const storage = multer.diskStorage({
     cb(null, uniqueName);
   },
 });
-const upload = multer({ storage });
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
+  fileFilter: function (req, file, cb) {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("File type not allowed. Accepted: images, PDF, Word, text, zip."));
+    }
+  },
+});
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 // ─── Mongoose Models ──────────────────────────────────────────────────────────
@@ -118,6 +145,21 @@ const verifyToken = (req, res, next) => {
   }
 };
 
+// ─── Role Middleware ──────────────────────────────────────────────────────────
+const requireAdmin = (req, res, next) => {
+  if (req.user?.role !== "admin") {
+    return res.status(403).json({ error: "Forbidden: admin access only" });
+  }
+  next();
+};
+
+const requireStaff = (req, res, next) => {
+  if (req.user?.role !== "agent" && req.user?.role !== "admin") {
+    return res.status(403).json({ error: "Forbidden: staff access only" });
+  }
+  next();
+};
+
 // ─── Auth Routes ──────────────────────────────────────────────────────────────
 app.get("/", (req, res) => {
   res.send("CSTC backend is running (MongoDB)");
@@ -171,7 +213,7 @@ app.post("/api/login", async (req, res) => {
 });
 
 // ─── Stats (Admin) ────────────────────────────────────────────────────────────
-app.get("/api/stats", verifyToken, async (req, res) => {
+app.get("/api/stats", verifyToken, requireAdmin, async (req, res) => {
   try {
     const totalTickets = await Ticket.countDocuments();
     const openTickets = await Ticket.countDocuments({ status: "open" });
@@ -199,7 +241,7 @@ app.get("/api/stats", verifyToken, async (req, res) => {
 });
 
 // ─── Users (Admin) ────────────────────────────────────────────────────────────
-app.get("/api/users", verifyToken, async (req, res) => {
+app.get("/api/users", verifyToken, requireAdmin, async (req, res) => {
   try {
     const users = await User.find({}, "-password_hash").sort({ createdAt: -1 });
     res.json(users);
@@ -208,7 +250,7 @@ app.get("/api/users", verifyToken, async (req, res) => {
   }
 });
 
-app.patch("/api/users/:id/role", verifyToken, async (req, res) => {
+app.patch("/api/users/:id/role", verifyToken, requireAdmin, async (req, res) => {
   try {
     const { role } = req.body;
     if (!["customer", "agent", "admin"].includes(role))
@@ -273,10 +315,35 @@ app.get("/api/tickets/:id", verifyToken, async (req, res) => {
 
 app.patch("/api/tickets/:id", verifyToken, async (req, res) => {
   const { status, priority, assigned_agent_id } = req.body;
+  const isStaff = req.user.role === "agent" || req.user.role === "admin";
   const updates = {};
-  if (status) updates.status = status;
-  if (priority) updates.priority = priority;
-  if (assigned_agent_id) updates.assigned_agent_id = assigned_agent_id;
+
+  if (status) {
+    // Customers can only reopen their own ticket or close it — staff can set any status
+    if (!isStaff) {
+      const allowed = ["reopened", "closed"];
+      if (!allowed.includes(status)) {
+        return res.status(403).json({ error: "Customers may only set status to 'reopened' or 'closed'" });
+      }
+      // Customers can only update their own tickets
+      const ticket = await Ticket.findById(req.params.id);
+      if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+      if (String(ticket.customer_id) !== String(req.user.id)) {
+        return res.status(403).json({ error: "Forbidden: not your ticket" });
+      }
+    }
+    updates.status = status;
+  }
+
+  // Only staff can change priority or reassign
+  if (priority) {
+    if (!isStaff) return res.status(403).json({ error: "Forbidden: only staff can change priority" });
+    updates.priority = priority;
+  }
+  if (assigned_agent_id) {
+    if (!isStaff) return res.status(403).json({ error: "Forbidden: only staff can assign tickets" });
+    updates.assigned_agent_id = assigned_agent_id;
+  }
 
   if (Object.keys(updates).length === 0)
     return res.status(400).json({ error: "No fields to update" });
@@ -310,7 +377,12 @@ app.post("/api/tickets/:id/comments", verifyToken, async (req, res) => {
 
 app.get("/api/tickets/:id/comments", verifyToken, async (req, res) => {
   try {
-    const comments = await Comment.find({ ticket_id: req.params.id })
+    const isStaff = req.user.role === "agent" || req.user.role === "admin";
+    const query = { ticket_id: req.params.id };
+    // Customers must not see internal (staff-only) notes
+    if (!isStaff) query.is_internal = false;
+
+    const comments = await Comment.find(query)
       .populate("user_id", "name role")
       .sort({ createdAt: 1 });
 
@@ -330,7 +402,15 @@ app.get("/api/tickets/:id/comments", verifyToken, async (req, res) => {
 });
 
 // ─── Attachments ──────────────────────────────────────────────────────────────
-app.post("/api/tickets/:id/attachments", verifyToken, upload.single("file"), async (req, res) => {
+// Handle multer errors (file type / size) gracefully
+app.post("/api/tickets/:id/attachments", verifyToken, (req, res, next) => {
+  upload.single("file")(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || "File upload error" });
+    }
+    next();
+  });
+}, async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
   try {
